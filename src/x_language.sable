@@ -1,0 +1,506 @@
+/* x-lang.sable */
+Package x_language;
+
+Helpers
+	simple_comment = '//' ;
+			
+	comment_begin = '/*' ;
+		
+	comment_end = '*/' ;
+		
+	// ASCII Codes
+		 
+	tab = 9;
+		
+	cr = 13;
+		
+	lf = 10;
+		
+	underscore = '_';
+	
+	//para o comentário
+	all = [0 .. 0xFFFF];
+	not_cr_lf = [all - [cr + lf]];
+    not_star = [all - '*'];
+    not_slash = [all - '/'];
+    not_star_slash = [not_star - '/'];
+   				
+	digit = ['0' .. '9'] ;
+		
+	hexa_digit = 
+		['0'..'9'] 
+		| ['a'..'f'] 
+		| ['A'..'F']
+		; 
+		
+	lowercase = ['a' .. 'z'] ;
+		
+	uppercase =['A' .. 'Z'];
+			
+	letter =
+		lowercase 
+		| uppercase
+		; 
+			
+	true = 'true';
+
+	false = 'false'; 
+	
+	eol = 
+		cr 
+		| lf 
+		| tab ;
+
+Tokens
+
+	// Keywords	
+	
+	real = 'real';
+			
+	int = 'int';
+			
+	bool = 'bool';
+		
+	//true = 'true';
+		
+	//false = 'false';
+		
+	if = 'if';
+			
+	then = 'then';
+		
+	else = 'else';
+		
+	while = 'while';
+		
+	procedure = 'procedure';
+		
+	function = 'function';
+		
+	cons = 'cons';
+		
+	var = 'var';
+		
+
+	// Symbols 
+	
+	pipe = '|' ;
+		
+	left_paren = '(';
+		
+	right_paren = ')';
+		
+	left_curly = '{';
+		
+	right_curly = '}';
+		
+	left_brackets = '[';
+		
+	right_brackets = ']';
+		
+	blank = (' ' | 13 | 10)+;
+		
+	assign = ':=' ;
+		
+	semicolon = ';' ;
+		
+	comma = ',' ;
+
+	// Operators
+
+	and = 'and';
+		
+	or = 'or';
+		
+	not = '!';
+		
+	plus = '+';
+		
+	minus = '-';
+		
+	div = '/';
+		
+	mult ='*';
+		
+	mod = '%';
+		
+	greater = '>';
+		
+	smaller = '<';
+		
+	equal = '=' ;
+
+	// Pre-definidas
+
+	size = 'size';
+		
+	print = 'print';
+		
+	read = 'read';
+
+	// Types
+
+	integer = 
+		digit+ 
+		| '0x' hexa_digit+
+		;
+	
+	real_number = 
+		digit+ ('e' '^' | 'E' '^') digit+
+		| digit+ '.' digit+
+		;
+
+	// Exemplos 10e^2 | 10.325
+
+	boolean = true | false;
+	
+	id = (lowercase | underscore) (letter | underscore | digit)* ;
+	
+	// End of line , tabulation
+	
+	eol = 
+		cr 
+		| lf 
+		| tab ;
+	
+	// Comments
+
+	line_comment = simple_comment not_cr_lf* eol;
+	block_comment = comment_begin (not_slash)* (not_star_slash)*  comment_end;
+
+ 
+Ignored Tokens
+
+	line_comment,
+	block_comment,
+	blank,
+	eol;
+	
+Productions
+
+	program = 
+		{start} start+
+		;
+	
+	start = 
+		{dec_var} dec_var 
+		| {dec_cons} dec_cons
+		| {dec_procedure} dec_procedure 
+		| {dec_function} dec_function 
+		;
+			
+	// Declaracao e initializacao de variavel
+	
+	dec_var = 	
+		{create} var type mult_dec_var semicolon {-> New dec_var.create(type, mult_dec_var ) } 
+		| {assign} var type var_assign semicolon {-> New dec_var.var_assign(type ,var_assign ) } ;
+	
+	mult_dec_var = 
+		id 
+		| {multi} id comma mult_dec_var {-> New mult_dec_var.multi(id , mult_dec_var)}
+		;
+				
+	var_assign = 
+		initialize 
+		| {assign} initialize comma var_assign {-> New var_assign.assign(initialize,var_assign)}
+		;
+	
+	// Declaracao e initializacao de const
+	
+	dec_cons = 	
+		{assign} cons type cons_assign semicolon {-> New dec_cons(type , cons_assign )} ;
+	
+	cons_assign = 
+		initialize 
+		| {assign} initialize comma cons_assign {-> New cons_assign.assign(initialize,cons_assign)}
+		; 	
+	 										
+ 	// Tipo base
+ 	 
+	type = 
+		{int} int {->New type.int()}
+		| {real} real {->New type.real()}
+		| {bool} bool {->New type.bool()}
+		| {array} type left_brackets exp right_brackets {->New type.array(type, exp)}
+		;
+	
+	array = 
+		{array_ext} array_ext
+		| {array_comp} array_comp
+		;
+	
+	array_ext = 
+		left_brackets array_exp right_brackets {-> New array_ext(array_exp)};
+			
+	array_exp =
+		{exps} exp comma array_exp
+		| exp
+		;
+	
+	array_comp = 
+		  {id}left_brackets id pipe array_comp right_brackets
+		| {exp} left_brackets id pipe exp right_brackets	 
+		;
+	
+	//Expressions
+	exp = 
+		{factor} factor {-> factor.exp} 
+		|{plus} [left]:exp plus [right]:factor {-> New exp.plus(left.exp, right.exp)} 
+		| {minus} [left]:exp minus [right]:factor {-> New exp.minus(left.exp, right.exp)}
+		| {not_exp} not [left]:factor 				{-> New exp.not(left.exp)}
+		| {equal} [left]:exp equal [right]:factor	{-> New exp.equal(left.exp, right.exp)}
+		| {greater} [left]:exp greater [right]:factor {-> New exp.greater(left.exp, right.exp)}
+		| {smaller} [left]:exp smaller [right]:factor {-> New exp.smaller(left.exp, right.exp)}
+		| {function_call} function_call				
+		| {block_exp} block_exp						{-> block_exp.exp}			
+		// | {if_then_else} if_then_else					{-> if_then_else.exp}			
+		;
+	
+	 factor	{-> exp} =
+		{term} term {-> term.exp}
+		|{mult} factor mult term{-> New exp.mult(factor.exp , term.exp)}
+		|{div} factor div term 	{-> New exp.div(factor.exp , term.exp)}
+		|{mod} factor mod term	{-> New exp.mod(factor.exp , term.exp)}
+		|{and} factor and term	{-> New exp.and(factor.exp , term.exp)}
+		|{or}factor or term		{-> New exp.or(factor.exp , term.exp)}
+		;
+		
+	 term {-> exp} =
+		{integer} integer {-> New exp.integer(integer)}
+		| {real_number} real_number {-> New exp.real_number(real_number)}
+		| {boolean} boolean 		{-> New exp.boolean(boolean)}
+		| {parenthesis_exp} parenthesis_exp {-> parenthesis_exp.exp}
+		;
+		
+	block_exp {-> exp} = 
+		left_curly dec_cons* exp* right_curly {-> New exp.block([dec_cons],[exp.exp])} ;
+		
+	parenthesis_exp {->exp} = 
+		left_paren exp right_paren {-> New exp.parenthesis(exp)} ; 
+				
+	/*if_then_else = if left_paren [l]:exp right_paren then [c]:exp else [r]:exp 
+								 {-> New if_then_else(l.exp,c.exp,r.exp)}; */
+
+	// Initializacao de var e cons 
+	
+	initialize = 	
+		{assign_val} assign_val {-> assign_val.initialize}
+		| {assign_id} assign_id 	{-> assign_id.initialize} 
+		| {assign_array_ext} assign_array_ext {-> assign_array_ext.initialize}
+ 		| {assign_array_comp} assign_array_comp {-> assign_array_comp.initialize} 
+		;						
+							
+	// Atribuicoes :=	
+	
+	assign_val {-> initialize} =
+		id assign exp {-> New initialize.assign( id , exp) }
+		;
+				
+	assign_id {-> initialize} = 
+		id assign assign_with_id {-> New initialize.assign_id(id , assign_with_id) }
+		;
+				
+	assign_with_id = 
+		id
+		;
+	
+	assign_array_ext {-> initialize} = 
+		id assign array_ext {-> New initialize.assign_array_ext(id, array_ext) }
+		;
+				
+	assign_array_comp {-> initialize} = 
+		id assign array_comp {-> New initialize.assign_array_comp(id, array_comp) };
+		
+	assign_operations{-> command} = 
+		{assign_val} id assign exp semicolon {-> New command.assign_val(id, exp) }
+		| {assign_id} id assign assign_with_id semicolon {-> New command.assign_id(id, assign_with_id) }
+		| {assign_array_ext} id assign array_ext semicolon {-> New command.assign_array_ext(id, array_ext) }
+		| {assign_array_comp} id assign array_comp semicolon {-> New command.assign_array_comp(id, array_comp) }
+		; 
+						
+	// Procedure e funcao
+						
+	dec_procedure = 
+		procedure id left_paren parameters right_paren command {-> New dec_procedure(id , parameters , [command] ) } ;
+		
+	dec_function = 
+		function type id left_paren parameters right_paren exp* {-> New dec_function(id, parameters, [exp]) };
+		
+	
+	parameters = 
+		{parameter} var type id {-> New parameters.parameter(type,id)}
+		| {parameter_list} var type id comma parameters {-> New parameters.parameter_list(type,id,parameters)}
+		| {empty}
+		;
+		
+	// Comandos
+	
+	command = 
+		{assign_operations} assign_operations 	{-> assign_operations.command}
+		//| {if_command} if_command				
+		| {if_else_command} if_else_command 	
+		| {while_command} while_command 		{-> while_command.command}
+		| {function_call} function_call				
+		| {block} left_curly block_scope right_curly    {-> New command.block(block_scope)}					
+		| {empty}
+		;
+		
+	block_scope = 	
+		{dec_cons} dec_cons
+		| {dec_var} dec_var
+		| {block_command} command
+		;
+								
+	if_else_command = 
+		if left_paren exp right_paren [l]:command else [r]:command 
+		{-> New if_else_command(exp , l.command , r.command)};
+	
+	//if_command = if left_paren exp right_paren command {-> New if_command(exp ,command)} ;
+	
+
+	while_command {-> command} =
+		while left_paren exp right_paren command {-> New command.while(exp , command)};
+	
+	// Chamada de funcao
+	
+	function_call = 
+		{function_call} id left_paren list_args right_paren semicolon {-> New function_call(id , list_args) } ;
+	
+	// Argumentos para funcao (lista_exp)
+	
+	list_args = 
+		{empty} 
+		| {args} list_args comma exp {->New list_args.args(list_args, exp)}
+		| exp
+		;
+	
+Abstract Syntax Tree
+
+	program = 
+		{start} start+
+		;
+				
+	start = 
+		{dec_var} dec_var 
+		| {dec_cons} dec_cons 
+		| {dec_procedure} dec_procedure 
+		| {dec_function} dec_function 
+		;
+	
+	dec_var = 
+		{create} type mult_dec_var
+		| {var_assign} type var_assign ;
+				
+	mult_dec_var = 
+		id 
+		| {multi} id mult_dec_var
+		;
+				
+	var_assign = 
+		initialize 
+		| {assign} initialize var_assign ; 
+	
+	dec_cons = 	
+		type cons_assign ;
+				
+	cons_assign = 
+		initialize 
+		| {assign} initialize cons_assign ; 	
+
+	type = 
+		  {int}
+		| {real}
+		| {bool}
+		| {array} type exp
+		;
+	array = 
+		{array_ext} array_ext 
+		| {array_comp} array_comp ;
+	
+	array_ext = array_exp ;
+		
+	array_exp = 
+		{exps} exp comma array_exp 
+		| exp ;
+	
+	array_comp = 
+		{id}left_brackets id pipe array_comp right_brackets 
+		| {exp} left_brackets id pipe exp right_brackets 
+		;
+				
+	exp = 	
+		{plus} [left]:exp [right]:exp
+		| {minus}[left]:exp [right]:exp
+		| {div}[left]:exp [right]:exp
+		| {mult} [left]:exp [right]:exp
+		| {mod}[left]:exp [right]:exp
+		| {not}[left]:exp
+		| {and}[left]:exp [right]:exp
+		| {or}	 [left]:exp [right]:exp
+		| {equal} [left]:exp [right]:exp
+		| {greater} [left]:exp [right]:exp
+		| {smaller} [left]:exp [right]:exp
+		| {integer} integer
+		| {real_number} real_number
+		| {boolean} boolean
+		| {parenthesis} exp 
+		| {function_call} function_call
+		| {block} dec_cons* exp*
+		//| {if_then_else} if_then_else
+		;			
+		
+	//if_then_else = [l]:exp [c]:exp [r]:exp ;	
+
+	initialize = 
+		{assign} id exp 
+		| {assign_id} id assign_with_id
+		| {assign_array_ext} id array_ext
+		| {assign_array_comp} id array_comp
+		;
+
+	assign_with_id = id;
+	
+	command = 	
+		//{if_command} if_command
+		{if_else_command} if_else_command
+		|{while} exp command
+		| {function_call} function_call
+		|{assign_val} id exp
+		|{assign_id} id assign_with_id
+		|{assign_array_ext} id array_ext
+		|{assign_array_comp} id array_comp
+	    |{block} block_scope
+		|{empty}
+		
+		;
+	
+		block_scope = {dec_cons} dec_cons 
+					| {dec_var} dec_var 
+					| {block_command} command;	
+		
+				
+	//if_command = exp command ;
+	
+	if_else_command = 
+		exp [l]:command [r]:command;		
+				
+				
+	list_args = 
+		{empty} 
+		| {args} list_args exp 
+		| exp 
+		;		
+		 
+	dec_procedure = 
+		id parameters command* ;
+		
+	dec_function =
+		id parameters exp* ;
+	
+	parameters = 
+		{parameter} type id 
+		| {parameter_list} type id parameters | {empty}
+		;
+				
+	function_call = id list_args;		
+			
